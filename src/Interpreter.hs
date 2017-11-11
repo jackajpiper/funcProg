@@ -28,6 +28,6 @@ data Err
 -- | Given a program and the initial memory contents, determines
 -- what evaluating the program does to the memory.
 interpret :: Program -> Memory -> Either Err Memory
-interpret p mem = undefined
+interpret [] mem = mem
 
 --------------------------------------------------------------------------------
