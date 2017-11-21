@@ -7,7 +7,6 @@ module Interpreter where
 --------------------------------------------------------------------------------
 
 import Language
-import Data.Either
 
 --------------------------------------------------------------------------------
 
@@ -36,27 +35,29 @@ intOp :: Op -> Int -> Int -> Int
 intOp Add a b = a + b
 intOp Sub a b = a - b
 intOp Mul a b = a * b
+intOp Div a b = a `div` b
 intOp Pow a b = a ^ b
 
 -- Evaluates both var and val based expressions into vals
-evalExpr :: Expr -> Memory -> Either Err Int
-evalExpr (ValE num) mem = Right num
+evalExpr :: Expr -> Memory -> Int
+evalExpr (ValE num) mem = num
 evalExpr (VarE var) mem = getVal var mem
 
-toInt :: Either Err Int -> Int
-toInt (Right num) = num
+toMemory :: Either Err Memory -> Memory
+toMemory (Right mem) = mem
 
 -- Evaluates an if statement into 0 (false) or something else (true)
 -- WARNING, INTTOBOOL HAS BEEN CHANGED TO INCLUDE EITHER BECAUSE OF THE NEED
 -- FOR THE OP PART OF THIS TO RETURN EITHER INT OR BOOL. THIS MAY FUCK UP
-evalIf :: Expr -> Memory-> Either Err Int
-evalIf (ValE num) mem = Right num
+evalIf :: Expr -> Memory-> Int
+evalIf (ValE num) mem = num
 evalIf (VarE var) mem = getVal var mem
+evalIf (BinOpE op a b) mem = intOp op (evalExpr a mem) (evalExpr b mem)
 
 -- When given a variable name, find the corresponding value within the memory
-getVal :: String -> Memory-> Either Err Int
-getVal name mem |not (any ((==name).fst) mem) = Left (UninitialisedMemory "The variable referenced is not in memory")
-                | otherwise = Right (snd(head(filter ((==name).fst) mem)))
+getVal :: String -> Memory-> Int
+getVal name mem = snd(head(filter ((==name).fst) mem))
+
 -- When the variable name is found within the memory, the value is
 -- updated to the new Int. If the variable is not in the memory, add it
 updateOrAdd :: String -> Int -> Memory -> Bool -> Memory
@@ -69,10 +70,8 @@ updateOrAdd name newval (x:xs) found | fst x == name = (name, newval) : updateOr
 -- what evaluating the program does to the memory.
 interpret :: Program -> Memory -> Either Err Memory
 interpret [] mem = Right mem
-interpret (AssignStmt name (ValE val):xs) mem = Right (updateOrAdd name val mem False)
-interpret (AssignStmt name (VarE var):xs) mem | isLeft(expr) = Left expr
-                                              | otherwise = Right (updateOrAdd name expr mem False)
-                                                  where expr = evalExpr var mem
+interpret (AssignStmt name val:xs) [] = Right (updateOrAdd name (evalExpr val []) [] False)
+interpret (AssignStmt name val:xs) mem = Right (updateOrAdd name (evalExpr val mem) [] False)
 
 -- interpret (p:ps) mem | p == AssignStmt = 0
 
