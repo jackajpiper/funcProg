@@ -1,0 +1,87 @@
+ 
+--------------------------------------------------------------------------------
+-- Functional Programming (CS256)                                             --
+-- Coursework 2: Scratch clone                                                --
+--------------------------------------------------------------------------------
+
+module Interpreter where
+--------------------------------------------------------------------------------
+
+import Language
+import Data.Typeable
+
+--------------------------------------------------------------------------------
+
+-- | In our memory, named locations map to values.
+type Memory = [(String, Int)]
+
+-- | Enumerates reasons for errors.
+data Err
+    = DivByZeroError                    -- ^ Division by zero was attempted.
+    | NegativeExponentError             -- ^ Raising a number to a negative
+                                        -- exponent was attempted.
+    | UninitialisedMemory String        -- ^ Tried to read from a variable
+                                        -- that does not exist.
+    deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+boolOp :: Op -> Int -> Int -> Bool
+boolOp Equal a b = a == b
+boolOp Neq a b = a /= b
+boolOp LessThan a b = a < b
+boolOp LessOrEqual a b = a <= b
+boolOp GreaterThan a b = a > b
+boolOp GreaterOrEqual a b = a >= b
+
+operate :: Op -> Int -> Int -> Int
+operate Add a b = a + b
+operate Sub a b = a - b
+operate Mul a b = a * b
+operate Pow a b = a ^ b
+operate Equal a b          | a == b = 1
+                           | otherwise = 0
+operate Neq a b            | a /= b = 1
+                           | otherwise = 0
+operate LessThan a b       | a < b = 1
+                           | otherwise = 0
+operate LessOrEqual a b    | a <= b = 1
+                           | otherwise = 0
+operate GreaterThan a b    | a > b = 1
+                           | otherwise = 0
+operate GreaterOrEqual a b | a >= b = 1
+                           | otherwise = 0
+
+evalExpr :: Expr -> Memory -> Either Err Int
+evalExpr (ValE val) mem = Right val
+evalExpr (VarE name) mem = lookUp name mem
+
+lookUp :: String -> Memory -> Either Err Int
+lookUp name [] = Left (UninitialisedMemory "Tried to look up var that wasn't in memory")
+lookUp name (x:xs) | fst x == name = Right (snd x)
+                   | otherwise = lookUp name xs
+
+updateOrAdd :: String -> Int -> Memory -> Bool -> Memory
+updateOrAdd name val [] found | found = []
+                              | otherwise = [(name,val)]
+updateOrAdd name val (x:xs) found | fst x == name = (name,val) : updateOrAdd name val [] True
+                                  | otherwise = x : updateOrAdd name val xs found
+
+
+-- | Given a program and the initial memory contents, determines
+-- what evaluating the program does to the memory.
+interpret :: Program -> Memory -> Either Err Memory
+interpret [] mem = Right mem
+interpret (AssignStmt name (ValE val):xs) mem = Right (updateOrAdd name val mem False)
+interpret (AssignStmt name (VarE var):xs) mem  = case evalExpr (VarE var) mem of
+                            Left x -> Left x
+                            Right x -> Right (updateOrAdd name x mem False)
+
+-- | typeOf expr == Err = Left expr
+                                            --   | otherwise = Right mem
+                                            --   where expr = evalExpr (AssignStmt name (VarE var)) mem
+
+
+
+-- interpret (p:ps) mem | p == AssignStmt = 0
+
+--------------------------------------------------------------------------------

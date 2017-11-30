@@ -1,0 +1,80 @@
+ 
+--------------------------------------------------------------------------------
+-- Functional Programming (CS256)                                             --
+-- Coursework 2: Scratch clone                                                --
+--------------------------------------------------------------------------------
+
+module Interpreter where
+--------------------------------------------------------------------------------
+
+import Language
+import Data.Either
+
+--------------------------------------------------------------------------------
+
+-- | In our memory, named locations map to values.
+type Memory = [(String, Int)]
+
+-- | Enumerates reasons for errors.
+data Err
+    = DivByZeroError                    -- ^ Division by zero was attempted.
+    | NegativeExponentError             -- ^ Raising a number to a negative
+                                        -- exponent was attempted.
+    | UninitialisedMemory String        -- ^ Tried to read from a variable
+                                        -- that does not exist.
+    deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+boolOp :: Op -> Int -> Int -> Bool
+boolOp Equal a b = a == b
+boolOp Neq a b = a /= b
+boolOp LessThan a b = a < b
+boolOp LessOrEqual a b = a <= b
+boolOp GreaterThan a b = a > b
+boolOp GreaterOrEqual a b = a >= b
+
+intOp :: Op -> Int -> Int -> Int
+intOp Add a b = a + b
+intOp Sub a b = a - b
+intOp Mul a b = a * b
+intOp Pow a b = a ^ b
+
+-- Evaluates both var and val based expressions into vals
+evalExpr :: Expr -> Memory -> Either Err Int
+evalExpr (ValE num) mem = Right num
+evalExpr (VarE var) mem = getVal var mem
+
+toInt :: Either Err Int -> Int
+toInt (Right num) = num
+
+-- Evaluates an if statement into 0 (false) or something else (true)
+-- WARNING, INTTOBOOL HAS BEEN CHANGED TO INCLUDE EITHER BECAUSE OF THE NEED
+-- FOR THE OP PART OF THIS TO RETURN EITHER INT OR BOOL. THIS MAY FUCK UP
+evalIf :: Expr -> Memory-> Either Err Int
+evalIf (ValE num) mem = Right num
+evalIf (VarE var) mem = getVal var mem
+
+-- When given a variable name, find the corresponding value within the memory
+getVal :: String -> Memory-> Either Err Int
+getVal name mem |not (any ((==name).fst) mem) = Left (UninitialisedMemory "The variable referenced is not in memory")
+                | otherwise = Right (snd(head(filter ((==name).fst) mem)))
+-- When the variable name is found within the memory, the value is
+-- updated to the new Int. If the variable is not in the memory, add it
+updateOrAdd :: String -> Int -> Memory -> Bool -> Memory
+updateOrAdd name newval [] found     | found = []
+                                     | otherwise = [(name, newval)]
+updateOrAdd name newval (x:xs) found | fst x == name = (name, newval) : updateOrAdd name newval xs True
+                                  | otherwise = x : updateOrAdd name newval xs found
+
+-- | Given a program and the initial memory contents, determines
+-- what evaluating the program does to the memory.
+interpret :: Program -> Memory -> Either Err Memory
+interpret [] mem = Right mem
+interpret (AssignStmt name (ValE val):xs) mem = Right (updateOrAdd name val mem False)
+interpret (AssignStmt name (VarE var):xs) mem | isLeft(expr) = expr
+                                              | otherwise = Right (updateOrAdd name expr mem False)
+                                                  where expr = evalExpr var mem
+
+-- interpret (p:ps) mem | p == AssignStmt = 0
+
+--------------------------------------------------------------------------------
